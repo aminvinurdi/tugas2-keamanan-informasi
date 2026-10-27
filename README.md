@@ -1,7 +1,5 @@
 # Tugas KI — AES-128 Manual + KDC + Chat Alice–Bob
 
-**Status:** Contoh implementasi yang sudah diuji otomatis. Disusun berdasarkan *Needham–Schroeder symmetric-key protocol* 5 pesan. **Wajib cocokkan lima langkah dengan PPT dosen** sebelum demo/pengumpulan. Jangan klaim kode/protokol ini identik dengan PPT bila belum diperiksa.
-
 ## Gambaran arsitektur
 
 ```text
@@ -196,11 +194,6 @@ Di Ubuntu gunakan `python3` jika `python` tidak dikenali. Tes mencakup:
 | `protocol.py` | JSON di atas TCP, bukan AES |
 | `tests/` | Bukti pengujian unit dan integrasi |
 
-Saran alur demo: cek 3 IP → jalankan KDC → jalankan Bob → Wireshark capture → jalankan Alice → tunjukkan langkah 1–5 → kirim dua arah → tunjukkan ciphertext Hex di Wireshark → ubah session key di KDC dan ketik `/rekey` pada Alice → kirim lagi.
+Alur demo: cek 3 IP → jalankan KDC → jalankan Bob → Wireshark capture → jalankan Alice → tunjukkan langkah 1–5 → kirim dua arah → tunjukkan ciphertext Hex di Wireshark → ubah session key di KDC dan ketik `/rekey` pada Alice → kirim lagi.
 
-## Batasan dan integritas akademik
 
-- **PPT dosen tidak tersedia saat proyek dibuat.** Protokol yang dipakai adalah asumsi desain yang umum. Cocokkan dulu semua pesan/tahapan, karena protokol PPT mungkin berbeda.
-- AES-CBC dengan IV acak memberikan kerahasiaan tetapi **tidak memberikan autentikasi/integritas ciphertext secara kuat**. Untuk produksi perlu AEAD seperti GCM atau mekanisme autentikasi terpisah; proyek ini menekankan implementasi **manual** sesuai tugas kelas.
-- Penggunaan untuk latihan/demo saja, tidak aman untuk sistem produksi karena risiko side-channel/replay dan keterbatasan protokol klasik.
-- Jangan asal mengumpulkan proyek tanpa memahami/menguji, menyesuaikan instruksi dosen, dan merekam kontribusi asli anggota di GitHub. `git commit` harus mencerminkan pekerjaan masing-masing anggota, jangan merekayasa authorship.
