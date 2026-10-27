@@ -67,7 +67,7 @@ python alice.py --kdc-host 127.0.0.1 --bob-host 127.0.0.1
 
 Ketika ditanya master key Alice, isi `AliceSecretKey01`.
 
-Coba ketik pesan ASCII dari terminal Alice dan balas dari terminal Bob. Lihat dua terminal menampilkan ciphertext HEX. Jangan memakai emoji/karakter non-ASCII.
+Ketik pesan ASCII dari terminal Alice dan balas dari terminal Bob. Lihat dua terminal menampilkan ciphertext HEX. Jangan memakai emoji/karakter non-ASCII.
 
 ## Cara pakai sungguhan dengan 3 IP di VMware (sesuai ketentuan)
 
