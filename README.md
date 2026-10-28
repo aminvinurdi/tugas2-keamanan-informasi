@@ -1,5 +1,7 @@
 # Tugas KI — AES-128 Manual + KDC + Chat Alice–Bob
 
+**Status:** Versi disesuaikan dengan diagram *Key Distribution Scenario* pada **slide 13 / halaman 7, PPT Keamanan Informasi Week 7.pdf**. Lima pesan dasar mengikuti diagram dosen; format serialization-nya JSON, algoritma E memakai AES-128-CBC manual dengan IV acak. Ada pesan ekstra `READY` sebagai konfirmasi setelah langkah ke-5 (bukan bagian lima langkah PPT). Hasil perlu dijalankan ulang di jaringan VMware sebelum dikumpulkan.
+
 ## Gambaran arsitektur
 
 ```text
@@ -14,13 +16,21 @@ Alice (Windows Host) <----> Bob (Ubuntu VM #2)
 
 Semua mesin berada pada VMware **Host-only / VMnet1** dengan **3 IP IPv4 berbeda**. Bob adalah TCP server, Alice TCP client; komunikasi chat **dua arah** di koneksi tersebut. KDC menjadi server distribusi key terpisah.
 
-### Ringkasan lima langkah yang diimplementasikan
+### Lima langkah **persis sesuai struktur PPT slide 13**
 
-- **1.** Alice → KDC: `(Alice, Bob, nonce_A)`.
-- **2.** KDC → Alice: pesan yang di-AES dengan *master key Alice* berisi `(nonce_A, Bob, K_AB, ticket_B)`; `ticket_B` adalah `(Alice, K_AB, expiry)` yang di-AES dengan *master key Bob*.
-- **3.** Alice → Bob: `ticket_B` terenkripsi.
-- **4.** Bob → Alice: nonce numerik `nonce_B` terenkripsi dengan session key `K_AB`.
-- **5.** Alice → Bob: `(nonce_B - 1)` terenkripsi dengan `K_AB`. Setelah diverifikasi, sesi chat dapat dipakai.
+Notasi diagram: `ID_A=Alice`, `ID_B=Bob`, `K_a=master Alice`, `K_b=master Bob`, `K_s=session key`, `N1=nonce Alice`, `N2=nonce Bob`, dan `E(K,x)` berarti AES dengan kunci K.
+
+1. **Alice → KDC:** `ID_A || ID_B || N1`. JSON: `KEY_REQUEST {alice, bob, nonce}`.
+2. **KDC → Alice:** `E(K_a, [K_s || ID_A || ID_B || N1]) || E(K_b, [K_s || ID_A])`. Dua ciphertext mandiri, dikirim dalam pesan JSON `KDC_REPLY {for_alice, ticket_for_bob}`; ticket tidak disisipkan di ciphertext pertama.
+3. **Alice → Bob:** `E(K_b, [K_s || ID_A])`. JSON: `TICKET {ticket}`; Bob mendekripsi menggunakan `K_b`.
+4. **Bob → Alice:** `E(K_s, N2)`. JSON: `CHALLENGE {payload}`.
+5. **Alice → Bob:** `E(K_s, f(N2))`. Di program, fungsi `f` adalah mengurangi bilangan nonce satu: `f(N2)=N2-1`. JSON: `CHALLENGE_REPLY {payload}`.
+
+**Sesudah langkah 5** Bob mengirim `READY` terenkripsi sebagai acknowledgement tambahan agar Alice tahu verifikasi sukses, kemudian kedua pengguna chat dua arah dengan AES. Paket `READY` **bukan langkah keenam protokol PPT**, hanya fitur implementasi.
+
+> Slide tidak menentukan mode AES, IV, atau format serialisasi; untuk keperluan tugas dipakai AES-128-CBC (manual), IV acak, PKCS#7, JSON framing TCP, plaintext dan key berkarakter ASCII, ciphertext dalam HEX. Penggunaan ini merupakan keputusan desain proyek, bukan klaim bahwa slide memerintahkannya. Format nonce challenge menggunakan angka ASCII.
+
+> **Batasan keamanan:** tiket langkah 3 sengaja hanya memuat K_s dan ID_A agar sesuai diagram PPT. Protokol klasik ini memiliki keterbatasan replay jika tiket lama / session key lama bocor; jangan gunakan aplikasi demonstrasi ini untuk komunikasi produksi. Pemilihan AES-CBC tanpa autentikasi kriptografis juga tidak tahan manipulasi ciphertext.
 
 KDC memakai dua master key terpisah: `K_A` dan `K_B`. KDC membuat session key `K_AB` acak baru pada setiap handshake (atau menerima session key yang ditentukan operator untuk permintaan berikutnya).
 
@@ -28,7 +38,7 @@ KDC memakai dua master key terpisah: `K_A` dan `K_B`. KDC membuat session key `K
 
 - `aes_manual.py`: operasi GF(2^8), algoritma S-Box/Inverse S-Box, Key Expansion, SubBytes, ShiftRows, MixColumns, AddRoundKey dan operasi invers AES-128 untuk dekripsi.
 - `crypto_utils.py`: mode AES-CBC, IV acak, PKCS#7 padding, plaintext dan key ASCII, output ciphertext HEX.
-- `kdc.py`: pembuatan session key, pembuatan ticket, distribusi kunci, dan pengelolaan master key. **Tidak menggunakan library AES siap pakai.**
+- `kdc.py`: membuat ciphertext `E(K_a,...)` dan tiket `E(K_b,...)` secara terpisah pada langkah 2, membuat session key, mengelola master key. **Tidak menggunakan library AES siap pakai.**
 - `protocol.py`: format paket ASCII JSON-per-baris di atas TCP socket Python standar.
 - `alice.py`, `bob.py`: handshake dan chat dua arah, masing-masing sender dan receiver.
 
@@ -67,7 +77,7 @@ python alice.py --kdc-host 127.0.0.1 --bob-host 127.0.0.1
 
 Ketika ditanya master key Alice, isi `AliceSecretKey01`.
 
-Ketik pesan ASCII dari terminal Alice dan balas dari terminal Bob. Lihat dua terminal menampilkan ciphertext HEX. Jangan memakai emoji/karakter non-ASCII.
+Coba ketik pesan ASCII dari terminal Alice dan balas dari terminal Bob. Lihat dua terminal menampilkan ciphertext HEX. Jangan memakai emoji/karakter non-ASCII.
 
 ## Cara pakai sungguhan dengan 3 IP di VMware (sesuai ketentuan)
 
@@ -194,6 +204,11 @@ Di Ubuntu gunakan `python3` jika `python` tidak dikenali. Tes mencakup:
 | `protocol.py` | JSON di atas TCP, bukan AES |
 | `tests/` | Bukti pengujian unit dan integrasi |
 
-Alur demo: cek 3 IP → jalankan KDC → jalankan Bob → Wireshark capture → jalankan Alice → tunjukkan langkah 1–5 → kirim dua arah → tunjukkan ciphertext Hex di Wireshark → ubah session key di KDC dan ketik `/rekey` pada Alice → kirim lagi.
+Saran alur demo: cek 3 IP → jalankan KDC → jalankan Bob → Wireshark capture → jalankan Alice → tunjukkan langkah 1–5 → kirim dua arah → tunjukkan ciphertext Hex di Wireshark → ubah session key di KDC dan ketik `/rekey` pada Alice → kirim lagi.
 
+## Batasan dan integritas akademik
 
+- **Sudah dibandingkan dengan diagram PPT dosen slide 13.** Struktur lima pesan dasar sesuai; pilihan CBC/IV/JSON/READY adalah detail implementasi tambahan, bukan tertulis eksplisit di slide.
+- AES-CBC dengan IV acak memberikan kerahasiaan tetapi **tidak memberikan autentikasi/integritas ciphertext secara kuat**. Untuk produksi perlu AEAD seperti GCM atau mekanisme autentikasi terpisah; proyek ini menekankan implementasi **manual** sesuai tugas kelas.
+- Penggunaan untuk latihan/demo saja, tidak aman untuk sistem produksi karena risiko side-channel/replay dan keterbatasan protokol klasik.
+- Jangan asal mengumpulkan proyek tanpa memahami/menguji, menyesuaikan instruksi dosen, dan merekam kontribusi asli anggota di GitHub. `git commit` harus mencerminkan pekerjaan masing-masing anggota, jangan merekayasa authorship.

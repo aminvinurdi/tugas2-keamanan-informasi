@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from alice import establish
 from bob import BobApp
 from kdc import KDCState, KDCHandler, ThreadedKDC
-from crypto_utils import decrypt_ascii, encrypt_ascii
+from crypto_utils import decrypt_ascii, decrypt_json, encrypt_ascii
 from protocol import recv_json, send_json
 
 
@@ -39,6 +39,20 @@ class TestEndToEnd(unittest.TestCase):
         cls.bob.server.close()
         cls.kdc.shutdown()
         cls.kdc.server_close()
+
+    def test_kdc_step2_matches_ppt_two_separate_ciphertexts(self):
+        n1 = 'ABCDEF1234567890'
+        for_alice, ticket_for_bob = self.kdc_state.issue({
+            'type': 'KEY_REQUEST', 'alice': 'Alice', 'bob': 'Bob', 'nonce': n1
+        })
+        body = decrypt_json(for_alice, 'AliceSecretKey01')
+        ticket = decrypt_json(ticket_for_bob, 'BobSecretKey0001')
+        self.assertEqual(set(body), {'session', 'alice', 'bob', 'nonce'})
+        self.assertEqual(set(ticket), {'session', 'alice'})
+        self.assertEqual(body['alice'], 'Alice')
+        self.assertEqual(body['bob'], 'Bob')
+        self.assertEqual(body['nonce'], n1)
+        self.assertEqual(ticket, {'session': body['session'], 'alice': 'Alice'})
 
     def test_five_steps_and_two_way_chat_and_rekey(self):
         alice_sock, alice_reader, key_one = establish(self.args, 'AliceSecretKey01')

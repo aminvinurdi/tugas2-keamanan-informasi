@@ -1,16 +1,20 @@
 """KDC server for the 5-message symmetric Needham-Schroeder scenario.
 
-Step 1 Alice -> KDC: A, B, nonce_A
-Step 2 KDC -> Alice: AES_KA(nonce_A, B, session_key, AES_KB(A, session_key))
-Step 3 Alice -> Bob: ticket AES_KB(A, session_key)
-Step 4 Bob -> Alice: AES_session(nonce_B)
-Step 5 Alice -> Bob: AES_session(nonce_B - 1)
+Diagram slide 13, PPT Keamanan Informasi Week 7:
+Step 1 A -> KDC: ID_A || ID_B || N1
+Step 2 KDC -> A: E(K_a, [K_s || ID_A || ID_B || N1]) || E(K_b, [K_s || ID_A])
+Step 3 A -> B: E(K_b, [K_s || ID_A])
+Step 4 B -> A: E(K_s, N2)
+Step 5 A -> B: E(K_s, f(N2)); in this demo f(N2) = N2 - 1
+Additional confirmation READY happens AFTER step 5, not part of slide's 5 steps.
+
+The || notation is represented as named JSON fields for clarity. Encryption itself
+uses hand-written AES-128-CBC and random IVs for demonstration.
 """
 import argparse
 import getpass
 import socketserver
 import threading
-import time
 from crypto_utils import check_key, encrypt_json, random_ascii
 from protocol import recv_json, send_json, print_cipher
 
@@ -31,9 +35,11 @@ class KDCState:
             alice_master, bob_master = self.keys['Alice'], self.keys['Bob']
             session_key = self.next_key or random_ascii()
             self.next_key = None
-        expiry = int(time.time()) + 900
-        ticket = encrypt_json({'alice': 'Alice', 'session': session_key, 'expires': expiry}, bob_master)
-        encrypted_reply = encrypt_json({'nonce': nonce, 'bob': 'Bob', 'session': session_key, 'ticket': ticket}, alice_master)
+        # Slide 13 (2): two SEPARATE ciphertexts (not a ticket embedded in E(K_a)).
+        ticket = encrypt_json({'session': session_key, 'alice': 'Alice'}, bob_master)
+        encrypted_reply = encrypt_json({
+            'session': session_key, 'alice': 'Alice', 'bob': 'Bob', 'nonce': nonce
+        }, alice_master)
         return encrypted_reply, ticket
 
 
@@ -45,9 +51,9 @@ class KDCHandler(socketserver.BaseRequestHandler):
             req = recv_json(reader)
             print(f"[KDC step 1] Request dari {self.client_address[0]}: Alice meminta key untuk Bob", flush=True)
             blob, ticket = self.server.kdc_state.issue(req)
-            print_cipher('KDC step 2 -> Alice (encrypted under K_A)', blob)
-            print_cipher('Ticket for Bob (encrypted under K_B)', ticket)
-            send_json(self.request, {'type': 'KDC_REPLY', 'blob': blob})
+            print_cipher('KDC step 2a E(K_a, [K_s, ID_A, ID_B, N1])', blob)
+            print_cipher('KDC step 2b E(K_b, [K_s, ID_A])', ticket)
+            send_json(self.request, {'type': 'KDC_REPLY', 'for_alice': blob, 'ticket_for_bob': ticket})
         except Exception as exc:
             print(f'[KDC ERROR] {exc}', flush=True)
             try:

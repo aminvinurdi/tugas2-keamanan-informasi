@@ -1,7 +1,6 @@
 """Alice: KDC requester and two-way AES chat participant."""
 import argparse
 import getpass
-import secrets
 import socket
 import threading
 
@@ -21,13 +20,14 @@ def request_key_from_kdc(host, port, alice_master_key):
         raise ValueError('KDC error: ' + str(result.get('message')))
     if result.get('type') != 'KDC_REPLY':
         raise ValueError('Balasan KDC tidak dikenali')
-    print_cipher('Alice step 2 menerima pesan KDC', result['blob'])
-    data = decrypt_json(result['blob'], alice_master_key)
-    if data.get('nonce') != nonce or data.get('bob') != 'Bob':
+    print_cipher('Alice step 2a E(K_a, [K_s, ID_A, ID_B, N1])', result['for_alice'])
+    print_cipher('Alice step 2b E(K_b, [K_s, ID_A])', result['ticket_for_bob'])
+    data = decrypt_json(result['for_alice'], alice_master_key)
+    if data.get('nonce') != nonce or data.get('alice') != 'Alice' or data.get('bob') != 'Bob':
         raise ValueError('Nonce/identitas pada balasan KDC tidak cocok')
     session_key = check_key(data['session'])
     print('[Alice] Key K_AB sudah didekripsi dan nonce Alice cocok.')
-    return session_key, data['ticket']
+    return session_key, result['ticket_for_bob']
 
 
 def establish(args, master_key):

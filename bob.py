@@ -4,7 +4,6 @@ import getpass
 import secrets
 import socket
 import threading
-import time
 
 from crypto_utils import check_key, decrypt_ascii, decrypt_json, encrypt_ascii
 from protocol import print_cipher, recv_json, send_json
@@ -29,8 +28,8 @@ class BobApp:
                     raise ValueError('Tahap 3 membutuhkan ticket KDC')
                 print_cipher('Bob step 3 <- Alice, ticket', first['ticket'])
                 ticket = decrypt_json(first['ticket'], self.master_key)
-                if ticket.get('alice') != 'Alice' or ticket.get('expires', 0) <= time.time():
-                    raise ValueError('Ticket kedaluwarsa atau identitas salah')
+                if ticket.get('alice') != 'Alice':
+                    raise ValueError('Ticket ditolak: ID_A tidak valid')
                 session_key = check_key(ticket['session'])
                 nonce = str(secrets.randbelow(900000000000) + 100000000000)
                 challenge = encrypt_ascii(nonce, session_key)
